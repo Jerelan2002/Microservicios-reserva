@@ -2,13 +2,20 @@ services:
   reservas:
     build: .
     container_name: reservas_service
-    ports:
-      - '8002:8002'
     env_file:
       - .env
     depends_on:
+      - rabbitmq
       - reservas_db
     restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.11-management
+    container_name: reservas_rabbitmq
+    restart: unless-stopped
+    ports:
+      - '5672:5672'
+      - '15672:15672'
 
   reservas_db:
     image: postgres:16

@@ -1,55 +1,78 @@
-﻿# Microservicio de Reservas
+﻿# Microservicio de Reservas por Mensajería
 
-Servicio responsable de gestionar clientes, reservas, anticipos y estados de reserva.
+Este proyecto ahora es un microservicio de reservas sin API HTTP directa.
+La comunicación se realiza a través de mensajes en RabbitMQ.
 
 ## Qué incluye
 
-- Backend con FastAPI
+- Servicio de reservas independiente
 - Base de datos PostgreSQL
-- Endpoints para clientes, reservas, anticipos y reportes
-- Scheduler para no-show
-- Documentación automática en Swagger
+- Consumo de comandos desde RabbitMQ
+- Scheduler de no-show
+- Lógica de clientes, reservas, anticipos y estados
 
-## Archivos importantes
+## Archivos clave
 
 - `Dockerfile`
 - `docker-compose.yml`
 - `requirements.txt`
 - `.env`
-- `.dockerignore`
-- `app/`
+- `app/main.py`
+- `app/rabbitmq.py`
+- `app/service.py`
 
-## Endpoints
+## Protocolo de mensajes
 
-- `GET /` → estado del servicio
-- `GET /docs` → documentación Swagger UI
-- `GET /clientes/`
-- `POST /clientes/`
-- `PUT /clientes/{id}`
-- `DELETE /clientes/{id}`
-- `GET /reservas/`
-- `GET /reservas/{id}`
-- `POST /reservas/`
-- `PATCH /reservas/{id}`
-- `POST /reservas/{id}/anticipo`
-- `PATCH /reservas/{id}/estado`
-- `PATCH /reservas/{id}/checkin`
-- `GET /reservas/disponibilidad`
-- `GET /reportes/reservas`
+El microservicio escucha en la cola configurada por `RABBITMQ_QUEUE`.
+Cada mensaje debe ser JSON con estos campos:
+
+- `action`: string que indica la operación
+- `payload`: objeto con los datos de la operación
+
+### Acciones soportadas
+
+- `cliente.list`
+- `cliente.create`
+- `cliente.update`
+- `cliente.delete`
+- `reserva.list`
+- `reserva.create`
+- `reserva.get`
+- `reserva.update`
+- `reserva.anticipo`
+- `reserva.change_status`
+- `reserva.checkin`
+- `reserva.availability`
+- `report.reservas`
+
+### Ejemplo de mensaje
+
+```json
+{
+  "action": "reserva.create",
+  "payload": {
+    "cliente_id": 1,
+    "restaurante_id": 1,
+    "sucursal_id": 1,
+    "fecha": "2026-07-01T19:00:00Z",
+    "hora_inicio": "2026-07-01T19:00:00Z",
+    "hora_fin": "2026-07-01T21:00:00Z",
+    "numero_personas": 4,
+    "mesa_id": null
+  }
+}
+```
 
 ## Dependencias
 
 Python 3.12 y estas versiones exactas:
 
-- `fastapi==0.115.0`
-- `uvicorn[standard]==0.24.0`
 - `sqlalchemy==2.0.35`
 - `psycopg[binary]==3.1.20`
 - `pydantic==2.8.0`
 - `pydantic-settings==2.8.0`
-- `email-validator==2.0.0`
 - `httpx==0.27.0`
-- `python-jose==3.3.0`
+- `pika==1.7.2`
 - `alembic==1.12.0`
 - `apscheduler==3.11.0`
 
@@ -60,43 +83,26 @@ Crea un archivo `.env` con estas variables:
 ```env
 DATABASE_URL=postgresql+psycopg://reservas_user:reservas_pass@reservas_db:5432/reservasdb
 ADMINISTRACION_URL=http://administracion:8001
-JWT_PUBLIC_KEY=
-JWT_ALGORITHM=RS256
-JWT_AUDIENCE=reservas-service
-JWT_ISSUER=security-service
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+RABBITMQ_QUEUE=reservas_queue
 ```
 
 > `DATABASE_URL` debe usar el host del contenedor de Postgres dentro de Docker.
 
-## Cómo ejecutar (simple)
+## Cómo ejecutar
 
 ```powershell
-docker --context desktop-linux compose up -d --build
+docker compose up -d --build
 ```
 
 ## Cómo verificar
 
-- `docker --context desktop-linux compose ps`
-- `docker --context desktop-linux compose logs --no-color --tail=80`
-- `http://localhost:8002/`
-- `http://localhost:8002/docs`
+- `docker compose ps`
+- `docker compose logs --no-color --tail=80`
+- RabbitMQ management: `http://localhost:15672`
 
-## Qué verás
+## Notas
 
-- `GET /` devuelve el estado del servicio.
-- `GET /docs` muestra Swagger.
-- `GET /clientes/` y `GET /reservas/` pueden devolver `[]` si no hay datos.
-- `GET /reportes/reservas` devuelve `total_reservas:0` si no hay reservas.
-
-## Información extra
-
-- No necesitas un script de arranque adicional.
-- Usa solo los comandos de Docker Compose arriba.
-- Este repositorio es backend; no incluye frontend.
-- Si `JWT_PUBLIC_KEY` no está configurado, el servicio no validará JWT.
-- Si `ADMINISTRACION_URL` no está disponible, las llamadas de disponibilidad pueden fallar.
-
-## Limpieza del proyecto
-
-- Eliminé `.venv` del repositorio.
-- Añadí `.dockerignore` para no copiar archivos locales en la imagen.
+- El servicio crea tablas en la base de datos y semillas de estados al iniciar.
+- El scheduler de no-show se ejecuta en segundo plano.
+- Si RabbitMQ no está disponible, el servicio no podrá procesar mensajes.
