@@ -1,33 +1,24 @@
 ﻿# Microservicio de Reservas por Mensajería
 
-Este proyecto ahora es un microservicio de reservas sin API HTTP directa.
-La comunicación se realiza a través de mensajes en RabbitMQ.
+Este proyecto ya no expone una API HTTP.
+Es un microservicio de mensajería que recibe mensajes desde RabbitMQ y procesa reservas, clientes, anticipos y estados.
 
-## Qué incluye
+## Qué es ahora
 
-- Servicio de reservas independiente
+- Servicio independiente orientado a mensajes
+- No hay endpoints REST
+- No hay Swagger ni `/docs`
+- Comunicación por cola RabbitMQ
 - Base de datos PostgreSQL
-- Consumo de comandos desde RabbitMQ
-- Scheduler de no-show
-- Lógica de clientes, reservas, anticipos y estados
+- Scheduler de no-show en segundo plano
 
-## Archivos clave
+## Cómo funciona
 
-- `Dockerfile`
-- `docker-compose.yml`
-- `requirements.txt`
-- `.env`
-- `app/main.py`
-- `app/rabbitmq.py`
-- `app/service.py`
+El servicio escucha en la cola configurada por `RABBITMQ_QUEUE`.
+Cada mensaje debe ser JSON con los campos:
 
-## Protocolo de mensajes
-
-El microservicio escucha en la cola configurada por `RABBITMQ_QUEUE`.
-Cada mensaje debe ser JSON con estos campos:
-
-- `action`: string que indica la operación
-- `payload`: objeto con los datos de la operación
+- `action`: nombre de la operación
+- `payload`: datos de entrada
 
 ### Acciones soportadas
 
@@ -45,7 +36,31 @@ Cada mensaje debe ser JSON con estos campos:
 - `reserva.availability`
 - `report.reservas`
 
-### Ejemplo de mensaje
+### Ejemplo de mensaje sencillo
+
+```json
+{
+  "action": "cliente.list",
+  "payload": {}
+}
+```
+
+### Ejemplo de crear cliente
+
+```json
+{
+  "action": "cliente.create",
+  "payload": {
+    "nombre": "Juan",
+    "apellido": "Pérez",
+    "identificacion": "12345678",
+    "telefono": "123456789",
+    "email": "juan@example.com"
+  }
+}
+```
+
+### Ejemplo de crear reserva
 
 ```json
 {
@@ -65,14 +80,15 @@ Cada mensaje debe ser JSON con estos campos:
 
 ## Dependencias
 
-Python 3.12 y estas versiones exactas:
+Python 3.12 o superior y estas versiones:
 
 - `sqlalchemy==2.0.35`
-- `psycopg[binary]==3.1.20`
-- `pydantic==2.8.0`
-- `pydantic-settings==2.8.0`
+- `psycopg[binary]==3.3.4`
+- `pydantic==2.13.4`
+- `pydantic-settings==2.13.0`
+- `email-validator==2.3.0`
 - `httpx==0.27.0`
-- `pika==1.7.2`
+- `pika==1.4.1`
 - `alembic==1.12.0`
 - `apscheduler==3.11.0`
 
@@ -95,14 +111,24 @@ RABBITMQ_QUEUE=reservas_queue
 docker compose up -d --build
 ```
 
-## Cómo verificar
+## Cómo probarlo desde Docker Desktop
 
-- `docker compose ps`
-- `docker compose logs --no-color --tail=80`
-- RabbitMQ management: `http://localhost:15672`
+1. Abre Docker Desktop.
+2. Asegúrate de que los contenedores `reservas_service`, `reservas_rabbitmq` y `reservas_db` están en marcha.
+3. Abre RabbitMQ management en `http://localhost:15672`.
+4. Inicia sesión con `guest` / `guest`.
+5. Ve a `Queues` y selecciona `reservas_queue`.
+6. En `Publish message`, pega uno de los mensajes JSON de ejemplo.
+7. Pulsa `Publish message`.
+
+## Verificar que funciona
+
+- La cola `reservas_queue` debe procesar el mensaje y quedar en `0 messages`.
+- Revisa los logs del contenedor `reservas_service` en Docker Desktop.
+- Si el servicio muestra `Esperando mensajes en cola 'reservas_queue'`, está listo.
 
 ## Notas
 
-- El servicio crea tablas en la base de datos y semillas de estados al iniciar.
-- El scheduler de no-show se ejecuta en segundo plano.
-- Si RabbitMQ no está disponible, el servicio no podrá procesar mensajes.
+- El servicio crea tablas y estados iniciales al iniciar.
+- Si RabbitMQ no está disponible, el servicio no procesará mensajes.
+- No esperes rutas HTTP ni documentación Swagger.
