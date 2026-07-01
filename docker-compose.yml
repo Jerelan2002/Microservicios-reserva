@@ -1,0 +1,27 @@
+services:
+  reservas:
+    build: .
+    container_name: reservas_service
+    ports:
+      - '8002:8002'
+    env_file:
+      - .env
+    depends_on:
+      - reservas_db
+    restart: unless-stopped
+
+  reservas_db:
+    image: postgres:16
+    container_name: reservas_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=reservas_user
+      - POSTGRES_PASSWORD=reservas_pass
+      - POSTGRES_DB=reservasdb
+    volumes:
+      - reservas_db_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+volumes:
+  reservas_db_data:
